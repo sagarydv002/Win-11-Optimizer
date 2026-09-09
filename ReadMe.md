@@ -26,7 +26,7 @@ Log: `optimus-<computername>.log` (script folder)
 - Removes Copilot, Bing Search app, Widgets (AppX + provisioning, all users)
 - Per-user (HKCU + all local profiles + Default profile via hive load/unload): Explorer tweaks, ads/suggestions off, sticky keys off, Office logging off
 
-## QA-specific deviations from stock TBOK script
+## QA-specific deviations from stock script
 | Item | Stock | This build | Why |
 |---|---|---|---|
 | `ssh-agent` | disabled | **left alone** | needed for git/test-server SSH |

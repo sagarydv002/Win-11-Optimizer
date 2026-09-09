@@ -14,7 +14,7 @@
 :: READY... Lets go
 ::
 :: ===== CUSTOMIZED BUILD: / QA Test Engineer profile =====
-:: Changes vs original TBOK script:
+:: Changes vs original OOBE script:
 ::   1) ssh-agent is NO LONGER disabled (QA work needs SSH for git/test servers)
 ::   2) Xbox services (XblAuthManager/XblGameSave/XboxNetApiSvc) set to DISABLED, not demand
 ::   3) Gaming-tweaks menu option removed from the menu (still present as a label but skip it -
@@ -76,7 +76,7 @@ ECHO Detected OS: %OSNAME% (Build %OSBUILD%)
 setlocal enableextensions EnableDelayedExpansion
 
 ::Log stored in current script directory with computername info for multi-pc deployments
-set "LOGFILE=%~dp0TBOKWinOptimizer-%computername%.log"
+set "LOGFILE=%~dp0WinOptimizer-%computername%.log"
 goto menu
 
 ::This line is called to see if a service exists in the system before making changes - prevents errors
@@ -99,21 +99,16 @@ exit /b
 ::::::::::::end script helper objects::::::::::
 
 :MENU
-TITLE TBOK Windows Performance Optimizer - QA Laptop Build
-ECHO _______Welcome to TBOK Windows Performance Optimizer (QA Laptop Build)_______
+TITLE Windows Performance Optimizer - QA Laptop Build
+
+ECHO ============================================================
+ECHO        Welcome to Windows Performance Optimizer
+ECHO                 QA Laptop Build
 ECHO ============================================================
 ECHO.
-ECHO        ::::::::::: :::::::::   ::::::::  :::    ::: 
-ECHO           :+:     :+:    :+: :+:    :+: :+:   :+:   
-ECHO          +:+     +:+    +:+ +:+    +:+ +:+  +:+     
-ECHO         +#+     +#++:++#+  +#+    +:+ +#++:++       
-ECHO        +#+     +#+    +#+ +#+    +#+ +#+  +#+       
-ECHO       #+#     #+#    #+# #+#    #+# #+#   #+#       
-ECHO      ###     #########   ########  ###    ### 
-ECHO.
+ECHO         Windows Optimizer By Sagar Yadav
+ECHO                     VERSION 09-09-2026
 ECHO ============================================================
-ECHO  The Beard of Knowledge Windows Optimizer VERSION 08-28-2026
-ECHO  (Customized: HP Pavilion Gaming RTX 3050 / QA Test Engineer)
 ECHO.
 ECHO Please choose
 ECHO 1. Apply system and user level improvements -RECOMMENDED START*Default Autorun*
