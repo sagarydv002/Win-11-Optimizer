@@ -1,19 +1,44 @@
-Yes... It's coming...
+# Windows Optimizer-QA.bat
 
-An easy to use, business approved, 1-click Windows 11 Optimization script that's 100% safe to use by I.T. teams, MSP's, and computer technicians (but you can also use it for personal use).
+Windows debloat/optimization script customized for a laptop QA Test Engineer workflow (tested target: HP Pavilion Gaming, RTX 3050).
 
-Call this a "Make Windows 11 perform the way it should" script, but I'll likely change it to something more catchy, LOL.
+## Usage
+Run as Administrator. Menu:
+1. System + user tweaks (default, 10s timeout)
+2. User tweaks only
+3. Exit
 
-If you haven't noticed, Windows 11 is not quite optimized, in fact, it's very unnecessarily bloated.  We're not talking about special use cases here, we're talking about day to day use.
-What took 1 second in Windows 10 now takes 4 seconds in windows 11.  Multiply that by how many actions you run on a PC and you're talking about A LOT of wasted time. 
+Log: `optimus-<computername>.log` (script folder)
 
-WE DON'T HAVE TIME FOR THAT!
+## OS Support
+- Windows 11 (build ≥22000) — full support
+- Windows 10 (build ≥10240) — full support
+- Windows 7 / older — warns and prompts Y/N; AppX/Edge-policy/WindowsAI sections silently no-op (keys/packages don't exist), core service/registry/explorer tweaks still apply
 
-It's not your computer, it's Microsoft's bad decisions on failure to streamline their OS for modern times.
+## What it does
+- Creates a System Restore point (falls back to HKLM/HKCU `.reg` export if restore fails)
+- Chassis-aware: enables hibernation on laptops, disables on desktops
+- Restores legacy F8 boot menu
+- Tunes pagefile based on installed RAM (skips if ≥32GB, uses auto-managed)
+- SvcHost split threshold set per installed RAM
+- Sets ~150 non-essential services to manual/disabled, core services forced to auto
+- Registry: network throttling off, IRP stack size, shutdown timeout, long path support, telemetry/DiagTrack off, Edge background/ads/telemetry off, Recall off, Office telemetry off
+- Removes Copilot, Bing Search app, Widgets (AppX + provisioning, all users)
+- Per-user (HKCU + all local profiles + Default profile via hive load/unload): Explorer tweaks, ads/suggestions off, sticky keys off, Office logging off
 
-While I love debloat tools like the CTT WinUtil and Belim's FlyByOOBE or CrapFixer, when you work with hundreds of computers like I do, you're not doing to manually configure these options on each pc, that's extremely inefficient and time consuming... time we don't have. 
+## QA-specific deviations from stock TBOK script
+| Item | Stock | This build | Why |
+|---|---|---|---|
+| `ssh-agent` | disabled | **left alone** | needed for git/test-server SSH |
+| `XblAuthManager/XblGameSave/XboxNetApiSvc` | manual | **disabled** | not gaming-focused |
+| Gaming Tweaks menu (option 3, desktop-only HAGS/power-plan/GPU P-state) | present | **removed** | irrelevant on this laptop; chassis check already no-ops desktop tweaks |
+| WinRM, Hyper-V `vmic*` services | manual | **unchanged** | required for automation/VM-based testing |
+| Windows Defender | untouched | **untouched** | unchanged |
 
-So let's fix that and make it soo easy and safe that it removes any hurdles.
+## Safety
+- Admin elevation is auto-requested (UAC prompt)
+- Restore point created before any changes; if it fails, registry hives are exported to script folder as `.reg` backups
+- Reboot prompted at end (Y/N, defaults to N after 10s)
 
-
-Also, you should switch to linux. =-)
+## Rollback
+Import the `.reg` backups (if created) or use System Restore to the pre-script checkpoint.

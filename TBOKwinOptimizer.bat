@@ -1,19 +1,26 @@
-:: Hello - if youre reading this its because you dont just blindly apply scripts willy nilly
+:: Hello and welcome to the Windows Optimizer script
 :: and you want to know the meat and potatoes of what its doing - no TRUST ME BRO, LOGIC
 :: I respect that, and honestly, it's the only way you should run a script you didn't make"
-:: This script is a combination of my 25 plus years of IT experience with Windows as an IT admin"
+:: This script is a combination of my 2 years of IT experience with Windows"
 :: While it is nothing slick or polished - it gets down to the essentials that I believe"
 :: should be the standard in a Windows Install to function properly
-:: The main issue I had with debloat and optimization scripts is that none of them did this
 :: Apply the optimizations to all users of a pc and without breaking any features
 :: The aim for this is to have a simple script you can either directly run on a pc or
 :: push to a machine on the network and have it automatically Optimize the system without you touching anything
-:: No GUI no decision just every good change that makes Windows run better and leaner all in one go
+:: some good change that makes Windows run better and leaner all in one go
 :: If you don't understand something here, just ask, my DM's and comments on social media are open
 :: If you have an issue or want to request a feature, please request it on GitHub
 :: If you want to learn more about each command, use what I use learn.microsoft.com
 :: READY... Lets go
-:: 
+::
+:: ===== CUSTOMIZED BUILD: / QA Test Engineer profile =====
+:: Changes vs original TBOK script:
+::   1) ssh-agent is NO LONGER disabled (QA work needs SSH for git/test servers)
+::   2) Xbox services (XblAuthManager/XblGameSave/XboxNetApiSvc) set to DISABLED, not demand
+::   3) Gaming-tweaks menu option removed from the menu (still present as a label but skip it -
+::      chassis detection already no-ops desktop-only tweaks on laptops)
+:: ================================================================================================
+::
 ::turn off echoing all commands
 @ECHO OFF
 ::change the terminal color to something friendlier
@@ -32,7 +39,37 @@ NET FILE 1>NUL 2>NUL
     exit /b
 :gotPrivileges 
 
-cls	
+cls
+::::::::::::begin OS compatibility check::::::::::
+for /f "tokens=3" %%B in ('reg query "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion" /v CurrentBuild ^| findstr CurrentBuild') do set "OSBUILD=%%B"
+if %OSBUILD% GEQ 22000 (
+    set "OSNAME=Windows 11"
+    goto oscontinue
+)
+if %OSBUILD% GEQ 10240 (
+    set "OSNAME=Windows 10"
+    goto oscontinue
+)
+set "OSNAME=Windows 7 / unsupported older build (%OSBUILD%)"
+ECHO ============================================================
+ECHO  WARNING: Detected %OSNAME%
+ECHO  This script targets Windows 10/11. Many tweaks reference
+ECHO  services, AppX packages (Copilot/Widgets/BingSearch), and
+ECHO  registry paths that do NOT exist on Windows 7 and will be
+ECHO  skipped/ignored automatically - but some sections (Edge
+ECHO  policies, WindowsAI keys, OOBE keys) are meaningless on Win7.
+ECHO  Core safe items (services, virtual memory, explorer tweaks)
+ECHO  will still work.
+ECHO ============================================================
+choice /c YN /n /m "Continue anyway on Windows 7? [Y/N]: "
+if errorlevel 2 (
+    ECHO Exiting - unsupported OS.
+    exit /b
+)
+:oscontinue
+ECHO Detected OS: %OSNAME% (Build %OSBUILD%)
+::::::::::::end OS compatibility check::::::::::
+
 ::::::::::::begin script helper objects::::::::::
 ::These are items that are called later in the script to perform a function - trims the code size
 ::enable extended script logic and variable holding
@@ -62,9 +99,8 @@ exit /b
 ::::::::::::end script helper objects::::::::::
 
 :MENU
-TITLE TBOK Windows Performance Optimizer V08-28-2026
-::MAKE SOUND rundll32.exe cmdext.dll,MessageBeepStub
-ECHO _______Welcome to TBOK Windows Performance Optimizer_______
+TITLE TBOK Windows Performance Optimizer - QA Laptop Build
+ECHO _______Welcome to TBOK Windows Performance Optimizer (QA Laptop Build)_______
 ECHO ============================================================
 ECHO.
 ECHO        ::::::::::: :::::::::   ::::::::  :::    ::: 
@@ -77,20 +113,19 @@ ECHO      ###     #########   ########  ###    ###
 ECHO.
 ECHO ============================================================
 ECHO  The Beard of Knowledge Windows Optimizer VERSION 08-28-2026
+ECHO  (Customized: HP Pavilion Gaming RTX 3050 / QA Test Engineer)
 ECHO.
 ECHO Please choose
 ECHO 1. Apply system and user level improvements -RECOMMENDED START*Default Autorun*
 ECHO 2. Apply only user level improvements
-ECHO 3. Apply only gaming tweaks - for desktops only
-ECHO 4. EXIT
+ECHO 3. EXIT
 ECHO.
 ECHO IF THIS HELPED YOU OUT -CONSIDER BUYING ME A COFFEE- THATS WHAT POWERED THIS
 ECHO "https://buymeacoffee.com/thebeardofl"
 ECHO.
 ECHO ============================================================
-CHOICE /c 1234 /n /m "Enter 1-4: (Default: 1 in 10 seconds): " /t 10 /d 1
-if errorlevel 4 goto :EXIT
-if errorlevel 3 goto :GamingTweaks
+CHOICE /c 123 /n /m "Enter 1-3: (Default: 1 in 10 seconds): " /t 10 /d 1
+if errorlevel 3 goto :EXIT
 if errorlevel 2 goto :UserTweaks
 if errorlevel 1 goto :SystemTweaks
 
@@ -251,7 +286,6 @@ call :SetServiceStartup NetTcpPortSharing disabled
 call :SetServiceStartup DialogBlockingService disabled
 call :SetServiceStartup DiagTrack disabled
 call :SetServiceStartup UevAgentService disabled
-call :SetServiceStartup ssh-agent disabled
 call :LOG Setting sysmain service mode based on RAM and System Disk type
 ::sysmain was developed to have the system load commonly used items from mechanical drives
 ::sysmain runs on second boot after install and uses about 70-mb ram as a constant process 
@@ -259,8 +293,6 @@ call :LOG Setting sysmain service mode based on RAM and System Disk type
 ::with the current speed of NVME drives - the sysmain services is practically irrelevant
 ::Findings Rule of thumb - sysmain should be disabled on systems with < 12GB ram
 ::However - it benefits mechanical hard drive systems with > 12Gb RAM
-
-::powershell -NoProfile -Command "$MemGB=((Get-CimInstance Win32_PhysicalMemory | Measure-Object Capacity -Sum).Sum/1GB); $Drive=$env:SystemDrive.TrimEnd(':'); $Disk=(Get-Partition -DriveLetter $Drive | Get-Disk); $IsSSD=($Disk.MediaType -eq 'SSD'); if($IsSSD){sc.exe config SysMain start= disable} elseif(($Disk.MediaType -ne 'SSD') -and ($MemGB -gt 12)){sc.exe config SysMain start= demand}"
 
 :: Get installed memory in GB
 for /f %%A in ('powershell -NoProfile -Command "[math]::Round(((Get-CimInstance Win32_PhysicalMemory | Measure-Object Capacity -Sum).Sum / 1GB),0)"') do (set MemoryGB=%%A)
@@ -307,12 +339,10 @@ call :SetServiceStartup AxInstSV demand
 call :SetServiceStartup BDESVC demand
 call :SetServiceStartup  BcastDVRUserService demand
 call :SetServiceStartup  BluetoothUserService demand
-::deprecated call :SetServiceStartup 'Browser' demand
 call :SetServiceStartup BTAGService demand
 call :SetServiceStartup bthserv demand
 call :SetServiceStartup  CaptureService demand
 call :SetServiceStartup  cbdhsvc demand
-::deprecated call :SetServiceStartup CDPSvc demand
 call :SetServiceStartup CertPropSvc demand
 call :SetServiceStartup cloudidsvc demand
 call :SetServiceStartup COMSysApp demand
@@ -351,15 +381,11 @@ call :SetServiceStartup  Fax demand
 call :SetServiceStartup FrameServer demand
 call :SetServiceStartup FrameServerMonitor demand
 call :SetServiceStartup GraphicsPerfSvc demand
-::deprecated call :SetServiceStartup  HomeGroupListener demand
-::deprecated call :SetServiceStartup  HomeGroupProvider demand
 call :SetServiceStartup HvHost demand
 call :SetServiceStartup  IEEtwCollectorService demand
 call :SetServiceStartup IKEEXT demand
-::ignored call :SetServiceStartup InstallService demand
 call :SetServiceStartup IpxlatCfgSvc demand
 call :SetServiceStartup lfsvc demand
-::ignored call :SetServiceStartup LicenseManager demand
 call :SetServiceStartup lltdsvc demand
 call :SetServiceStartup lmhosts demand
 call :SetServiceStartup LxpSvc demand
@@ -380,8 +406,6 @@ call :SetServiceStartup NetSetupSvc demand
 call :SetServiceStartup Netman demand
 call :SetServiceStartup  NgcCtnrSvc demand
 call :SetServiceStartup  NgcSvc demand
-::omitforENTERPRISE call :SetServiceStartup NlaSvc demand
-::omitforENTERPRISE call :SetServiceStartup netprofm demand
 call :SetServiceStartup  p2pimsvc demand
 call :SetServiceStartup  p2psvc demand
 call :SetServiceStartup  P9RdrService demand
@@ -429,20 +453,17 @@ call :SetServiceStartup StiSvc demand
 call :SetServiceStartup StorSvc demand
 call :SetServiceStartup svsvc demand
 call :SetServiceStartup swprv demand
-::sysmain alphabetical placeholder
 call :SetServiceStartup  TabletInputService demand
 call :SetServiceStartup TapiSrv demand
 call :SetServiceStartup TieringEngineService demand
 call :SetServiceStartup  TimeBroker demand
 call :SetServiceStartup  TimeBrokerSvc demand
-::omitforENTERPRISE call :SetServiceStartup TokenBroker demand
 call :SetServiceStartup TroubleshootingSvc demand
 call :SetServiceStartup  UI0Detect demand
 call :SetServiceStartup  UdkUserSvc demand
 call :SetServiceStartup UmRdpService demand
 call :SetServiceStartup  UnistoreSvc demand
 call :SetServiceStartup  UserDataSvc demand
-::omitforENTERPRISE call :SetServiceStartup UsoSvc demand
 call :SetServiceStartup upnphost demand
 call :SetServiceStartup  VacSvc demand
 call :SetServiceStartup vds demand
@@ -479,12 +500,10 @@ call :SetServiceStartup WMPNetworkSvc demand
 call :SetServiceStartup WManSvc demand
 call :SetServiceStartup WPDBusEnum demand
 call :SetServiceStartup WpcMonSvc demand
-::omitforENTERPRISE call :SetServiceStartup WpnService demand
 call :SetServiceStartup workfolderssvc demand
-::deprecated call :SetServiceStartup  WSService demand
-call :SetServiceStartup XblAuthManager demand
-call :SetServiceStartup XblGameSave demand
-call :SetServiceStartup XboxNetApiSvc demand
+call :SetServiceStartup XblAuthManager disabled
+call :SetServiceStartup XblGameSave disabled
+call :SetServiceStartup XboxNetApiSvc disabled
 ECHO.
 call :LOG Done with manual services
 ECHO.
@@ -520,8 +539,6 @@ call :SetServiceStartup Power auto
 call :SetServiceStartup ProfSvc auto
 call :SetServiceStartup RpcEptMapper auto
 call :SetServiceStartup RpcSs auto
-::omitforENTERPRISE call :SetServiceStartup RemoteAccess auto
-::omitforENTERPRISE call :SetServiceStartup RemoteRegistry auto
 call :SetServiceStartup SENS auto
 call :SetServiceStartup SamSs auto
 call :SetServiceStartup Schedule auto
@@ -543,7 +560,6 @@ call :SetServiceStartup WlanSvc auto
 call :SetServiceStartup WpnUserService auto
 ECHO.
 Call :LOG Changing less essential services to delayed-auto
-::omit call :SetServiceStartup MapsBroker delayed-auto
 call :SetServiceStartup SecurityHealthService delayed-auto
 call :SetServiceStartup WSearch delayed-auto
 call :SetServiceStartup wscsvc delayed-auto
@@ -683,29 +699,6 @@ REG ADD "HKLM\Software\Policies\Microsoft\Edge" /v DiagnosticData /t REG_DWORD /
 call :LOG Disabling Microsoft Recall from being enabled
 REG ADD "HKLM\SOFTWARE\Policies\Microsoft\Windows\WindowsAI" /v AllowRecallEnablement /t REG_DWORD /d 0 /f
 
-::call :LOG Wi-Fi Sense Disable affects devices autoconnecting - leaving enabled
-::REG ADD "HKLM\software\microsoft\wcmsvc\wifinetworkmanager" /v wifisensecredshared /t REG_DWORD /d 0 /f
-::REG ADD "HKLM\software\microsoft\wcmsvc\wifinetworkmanager" /v wifisenseopen /t REG_DWORD /d 0 /f
-
-::call :LOG Disable WAP Push Message Routing Service - Found Required for Enterprise MDM - excluding
-::REG ADD "HKLM\SYSTEM\CurrentControlSet\Services\dmwappushservice" /v start /t REG_DWORD /d 00000004 /f
-
-::call :LOG Disabling Windows Defender sample reporting - sends all scanned unknown files to Microsoft and has a known vulnerability
-::Microsoft protected these keys from being modified in an update
-::REG ADD "HKLM\software\microsoft\windows defender\spynet" /v spynetreporting /t REG_DWORD /d 0 /f
-::REG ADD "HKLM\software\microsoft\windows defender\spynet" /v submitsamplesconsent /t REG_DWORD /d 0 /f
-
-::Optional For system hardening only - Clear pagefile at shutdown
-:: sometimes slows shutdown time removing sensitive memory remnants from pagefile.sys - rebuilds each boot
-::REG ADD "HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management" /v ClearPageFileAtShutdown /t REG_DWORD /d 1 /f
-
-::call :LOG Disable GameDVR - not recommended on AMD X3d chips due to CCD cache routing
-::REG ADD "HKLM\SOFTWARE\Policies\Microsoft\Windows\GameDVR\AllowGameDVR /t REG_DWORD /d 0 /f
-::REG ADD "HKLM\SOFTWARE\Microsoft\PolicyManager\default\ApplicationManagement" /v AllowGameDVR /t REG_DWORD /d 0 /f
-
-::Disable Windows Code Integrity app control - SmartAPPControl
-::REG ADD "HKLM\SYSTEM\CurrentControlSet\Control\CI\Policy" /v VerifiedAndReputablePolicyState /t REG_DWORD /d 0 /f
-
 :: =======Disable Microsoft Office telemetry agent==========
 call :LOG --- Disable Microsoft Office telemetry agent
 :: Disable scheduled task(s): `\Microsoft\Office\OfficeTelemetryAgentFallBack`
@@ -746,49 +739,9 @@ powershell -command "Get-Process *Widget* | Stop-Process"
 powershell -command "Get-AppxPackage Microsoft.WidgetsPlatformRuntime -AllUsers | Remove-AppxPackage -AllUsers"
 powershell -command "Get-AppxPackage MicrosoftWindows.Client.WebExperience -AllUsers | Remove-AppxPackage -AllUsers"
 
-:: ___________________________________________PENDING SECTION START___________________________________________
-
-::optional LMS AMT-vPro Environment disable
-::call :LOG Disable LMS1 AKA Intel vPro system
-::Stopping and disabling service: LMS
-::powershell.exe -NoProfile -Command "$svc = Get-Service LMS -ErrorAction SilentlyContinue; if($svc){  Stop-Service LMS -Force -ErrorAction SilentlyContinue;  Set-Service LMS -StartupType Disabled }"
-::Removing service: LMS
-::Remove LMS driver packages
-::Remove driver package: lms.inf_amd64_3e015d10576493ca
-::Remove driver package: lms.inf
-::Search for and delete LMS executable files
-::No LMS.exe files found in Program Files directories.
-
-::==Remove wasteful Scheduled Tasks==
-::Disabling Scheduled Task Microsoft\Windows\Application Experience\Microsoft Compatibility Appraiser
-:PowerShell -ExecutionPolicy Unrestricted -Command "$taskPathPattern='\Microsoft\Windows\'; $taskNamePattern='Microsoft Compatibility Appraiser Exp'; Write-Output "^""Disabling tasks matching pattern `"^""$taskNamePattern`"^""."^""; $tasks = @(Get-ScheduledTask -TaskPath $taskPathPattern -TaskName $taskNamePattern -ErrorAction Ignore); if (-Not $tasks) {; Write-Output "^""Skipping, no tasks matching pattern `"^""$taskNamePattern`"^"" found, no action needed."^""; exit 0; }; $operationFailed = $false; foreach ($task in $tasks) {; $taskName = $task.TaskName; if ($task.State -eq [Microsoft.PowerShell.Cmdletization.GeneratedTypes.ScheduledTask.StateEnum]::Disabled) {; Write-Output "^""Skipping, task `"^""$taskName`"^"" is already disabled, no action needed."^""; continue; }; try {; $task | Disable-ScheduledTask -ErrorAction Stop | Out-Null; Write-Output "^""Successfully disabled task `"^""$taskName`"^""."^""; } catch {; Write-Error "^""Failed to disable task `"^""$taskName`"^"": $($_.Exception.Message)"^""; $operationFailed = $true; }; }; if ($operationFailed) {; Write-Output 'Failed to disable some tasks. Check error messages above.'; exit 1; }"
-::Disabling Scheduled Task Microsoft\Windows\Application Experience\ProgramDataUpdater
-::Disabling Scheduled Task Microsoft\Windows\Application Experience\MareBackup
-::Disabling Scheduled Task Microsoft\Windows\Application Experience\StartupAppTask
-::Disabling Scheduled Task Microsoft\Windows\Application Experience\PcaPatchDbTask
-::Disabling Scheduled Task Microsoft\Windows\Autochk\Proxy
-::Disabling Scheduled Task Microsoft\Windows\Customer Experience Improvement Program\Consolidator
-::Disabling Scheduled Task Microsoft\Windows\Customer Experience Improvement Program\UsbCeip
-::Disabling Scheduled Task Microsoft\Windows\DiskDiagnostic\Microsoft-Windows-DiskDiagnosticDataCollector
-::Disabling Scheduled Task Microsoft\Windows\Feedback\Siuf\DmClient
-::Disabling Scheduled Task Microsoft\Windows\Feedback\Siuf\DmClientOnScenarioDownload
-::Disabling Scheduled Task Microsoft\Windows\Maps\MapsUpdateTask
-::Disabling Scheduled Task Microsoft\Windows\Windows Error Reporting\QueueReporting
-
-::___________________________________________PENDING SECTION END___________________________________________
-
 :USERTWEAKS
 goto UserRegistryDeployment
-:: ===============================================================
-:: -START SECTION - APPLY PER USER REGISTRY SETTINGS TO ALL USERS
-:: ===============================================================
-:: PER USER REGISTRY KEYS TO APPLY - This section applies registry tweaks
-:: This will loop through each existing user account on the pc and apply the registry settings below 
-:: %base%\ is normally HKCU\
-:: REG ADD "%BASE%\Path" /v ValueName /t REG_DWORD /d 1 /f
-::example
-::REG ADD "%BASE%\Software\Policies\Microsoft\Windows\Explorer" /v DisableSearchBoxSuggestions /t REG_DWORD /d 1 /f >nul 2>&1
-:: if errorlevel 1 call :Log ERROR setting ValueName for %BASE%
+
 :ApplySettings
 
 call :LOG ========= Apply Tweaks to User Registry Hives and Default ==============
@@ -851,15 +804,9 @@ REG ADD "%BASE%\Control Panel\Desktop" /v DragFullWindows /t REG_SZ /d 1 /f
 REG ADD "%BASE%\Control Panel\Desktop\WindowMetrics" /v MinAnimate /t REG_SZ /d 0 /f
 REG ADD "%BASE%\Control Panel\Keyboard" /v KeyboardDelay /t REG_SZ /d 0 /f
 REG ADD "%BASE%\Software\Microsoft\Windows\DWM" /v EnableAeroPeek /t REG_DWORD /d 0 /f
-::research this - possible webview dependency removal - found all over the place - runaway webview2.exe processes
-::REG ADD "%BASE%\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" /v WebView /t REG_DWORD /d 0 /f
-
-::call :LOG Disable transparency effects - optional - left enabled for WindHawk TransparentTB and WallpaperEngine
-::REG ADD "%BASE%\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize" /v EnableTransparency /t REG_DWORD /d 0 /f 
 
 :advertising
 call :LOG Start Disabling User level ads in Windows
-
 
 call :LOG Disable Explorer search box suggestions -Ads-
 REG ADD "%BASE%\Software\Policies\Microsoft\Windows\Explorer" /v DisableSearchBoxSuggestions /t REG_DWORD /d 1 /f
@@ -977,17 +924,6 @@ REG ADD "%BASE%\SOFTWARE\Microsoft\Office\16.0\Common\Feedback" /v "Enabled" /t 
 call :LOG Disabling sticky keys feature because leaving something on the shift-key is just as bad as capslock
 REG ADD "%BASE%\Control Panel\Accessibility\StickyKeys" /v Flags /t REG_SZ /d 58 /f
 
-::disabled this section because it negatively affects chips with CCD cache routing -X3d etc- and e-core parking when gaming
-::disable game DVR
-::add logic to detect if processor has CCD cache before disbling - for now leave as is
-::REG ADD "%BASE%\System\GameConfigStore" /v GameDVR_Enabled /t REG_DWORD /d 0 /f
-::REG ADD "%BASE%\System\GameConfigStore" /v GameDVR_FSEBehavior /t REG_DWORD /d 2 /f
-::REG ADD "%BASE%\System\GameConfigStore" /v GameDVR_FSEBehaviorMode /t REG_DWORD /d 2 /f
-::REG ADD "%BASE%\System\GameConfigStore" /v GameDVR_HonorUserFSEBehaviorMode /t REG_DWORD /d 0 /f
-::REG ADD "%BASE%\System\GameConfigStore" /v GameDVR_EFSEFeatureFlags /t REG_DWORD /d 0 /f
-
-::Allow RDP remote assistance - leave enabled for business use
-::REG ADD "HKLM\SYSTEM\CurrentControlSet\Control\Remote Assistance" /v fAllowToGetHelp /t REG_DWORD /d 0 /f
 goto :eof
 
 ::********************************END of USER REGISTRY SETTINGS TO APPLY********************************
@@ -999,7 +935,6 @@ call :LOG Starting per-user registry deployment...
 :: ================================
 call :Log Processing loaded user hives
 for /f "delims=" %%U in ('reg query HKEY_USERS ^| findstr /R "HKEY_USERS\\S-1-5-21- HKEY_USERS\\S-1-12-1-"') do (
-::echo Found User Hive: [%%U]
 call :ApplySettings "%%U"
 )
 :: ================================
@@ -1068,88 +1003,6 @@ call :LOG Done. Log file: %LOGFILE%
 goto REBOOT
 ::======================================END FOR EACH USER REGISTRY LOOP==========================================
 
-:GamingTweaks
-call :LOG Begin Gaming Tweaks Section
-
-call :LOG Reset and Redetect Windows HPET dependency -High Precision Event Timer- - fixes issue where HPET was not detected properly
-bcdedit.exe /deletevalue useplatformclock >nul 2>&1
-if errorlevel 1 (
-    call :LOG useplatformclock was not explicitly configured or could not be changed.
-) else (
-    call :LOG Removed explicit useplatformclock override.
-)
-call :LOG Enabling HAGS - Hardware Accelerated GPU Scheduling - will only work if supported but at least not disabled
-REG ADD "HKLM\SYSTEM\CurrentControlSet\Control\GraphicsDrivers" /v HWSchMode /t REG_DWORD /d 2 /f
-
-call :LOG Enabling Optimizations for Windowed Games
-REG ADD "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\GameDVR\Graphics" /v OptimizationsForWindowedGames /t REG_DWORD /d 1 /f
-
-call :LOG Increasing system responsiveness for Games
-REG ADD "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile\Tasks\Games" /v SystemResponsiveness /t REG_DWORD /d 0x0000000a /f
-
-call :LOG Enabling Optimizations for Windowed Games
-REG ADD "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\GameDVR\Graphics" /v OptimizationsForWindowedGames /t REG_DWORD /d 1 /f
-
-call :LOG Setting GPU priority for Full Screen Apps and Games based on Microsoft Learn Docs
-REG ADD "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile\Tasks\Games" /v "GPU Priority" /t REG_DWORD /d 8 /f
-REG ADD "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile\Tasks\Games" /v Priority /t REG_DWORD /d 6 /f
-REG ADD "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile\Tasks\Games" /v "Scheduling Category" /t REG_SZ /d Medium /f
-REG ADD "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile\Tasks\Games" /v "SFIO Priority" /t REG_SZ /d High /f
-REG ADD "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile\Tasks\Games" /v "Latency Sensitive" /t REG_SZ /d True /f
-
-:detectchassisGamingTweaks
-	Set "Type=" & For /F EOL^=- %%G In ('
-	 %SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe -NoProfile -Command
-	 "(Get-CimInstance -Query 'Select * From CIM_Chassis').ChassisTypes"^
-	 " | Select-Object -Property @{ Label = '-'; Expression = { Switch ($_) {"^
- 	" { '3', '4', '5', '6', '7', '13', '15', '16', '24' -Eq $_ } { 'Desktop' };"^
- 	" { '8', '9', '10', '11', '12', '14', '18', '21', '30', '31', '32' -Eq $_ } { 'Laptop' };"^
-	 " default { '' } } } }" 2^>NUL') Do Set Type=%%G
-	If Not Defined Type GoTo unknownchassisgaming
-	Set Type
-		if /i "%Type%"=="Laptop" goto laptopgaming
-		if /i "%Type%"=="Desktop" goto desktopgaming
-		goto unknownchassisgaming
-	:laptopgaming
-		call :LOG Laptop detected - Not recommended to enabled these power tweaks
-		::changeme
-		goto REBOOT
-	:desktopgaming
-		call :LOG Desktop detected - Enabling Desktop Only Optimizations
-		
-		call :LOG Disable power throttling
-		REG ADD "HKLM\SYSTEM\CurrentControlSet\Control\Power\PowerThrottling" /v PowerThrottlingOff /t REG_DWORD /d 1 /f
-		REG ADD "HKLM\SYSTEM\CurrentControlSet\Control\Power\PowerThrottling" /v NoLazyMode /t REG_DWORD /d 00000000 /f
-		REG ADD "HKLM\SYSTEM\CurrentControlSet\Control\Power\PowerThrottling" /v AlwaysOn /t REG_DWORD /d 00000000 /f
-
-		call :LOG Enable Ultimate performance power plan for desktops only
-		powercfg -duplicatescheme e9a42b02-d5df-448d-aa00-03f14749eb61 >nul 2>&1
-		powercfg /setactive e9a42b02-d5df-448d-aa00-03f14749eb61
-		::powercfg /getactivescheme
-		::REG ADD "HKLM\SYSTEM\CurrentControlSet\Control\Power\PowerSettings\238C9FA8-0AAD-41ED-83F4-97BE242C8F20\7bc4a2f9-d8fc-4469-b07b-33eb785aaca0" /v Attributes /t REG_DWORD /d 2 /f
-		::REG ADD "HKLM\SYSTEM\CurrentControlSet\Control\Power\PowerSettings\abfc2519-3608-4c2a-94ea-171b0ed546ab\94ac6d29-73ce-41a6-809f-6363ba21b47e" /v Attributes /t REG_DWORD /d 2 /f
-
-		call :LOG Disabling Dynamic P-state for GPUs...forces gpu to run at maximum performance
-powershell -NoProfile -ExecutionPolicy Bypass -Command ^
-"$gpuDevices = Get-CimInstance Win32_VideoController | Where-Object {$_.PNPDeviceID -match 'PCI\\VEN_'}; ^
-foreach ($gpu in $gpuDevices) { ^
-    Write-Host ('Processing GPU: ' + $gpu.Name); ^
-    $driverKey = (Get-ItemProperty ('HKLM:\SYSTEM\CurrentControlSet\Enum\' + $gpu.PNPDeviceID) -Name Driver -ErrorAction SilentlyContinue).Driver; ^
-    if ($driverKey) { ^
-        $regPath = 'HKLM:\SYSTEM\CurrentControlSet\Control\Class\' + $driverKey; ^
-        if (Test-Path $regPath) { ^
-            Write-Host ('Setting registry key at: ' + $regPath); ^
-            New-ItemProperty -Path $regPath -Name DisableDynamicPstate -PropertyType DWord -Value 1 -Force | Out-Null; ^
-            Write-Host 'Dynamic P-state disabled successfully'; ^
-        } ^
-    } ^
-}"
-
-goto REBOOT
-	:unknownchassisgaming
-		call :LOG Unable to determine chassis type. Skipped power tweaks.
-	goto REBOOT
-	
 :REBOOT
 call :LOG ****************************ALL FINISHED!******************************
 call :LOG .
