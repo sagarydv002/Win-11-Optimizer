@@ -1,6 +1,6 @@
 # Windows Optimizer-QA.bat
 
-Windows debloat/optimization script customized for a laptop QA Test Engineer workflow (tested target: HP Pavilion Gaming, RTX 3050).
+Windows debloat/optimization script customized for a laptop QA Test Engineer/Devops workflow
 
 ## Usage
 Run as Administrator. Menu:
