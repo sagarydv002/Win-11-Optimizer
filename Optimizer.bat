@@ -148,15 +148,15 @@ call :LOG Ensuring restore point can be created immediately
 REG ADD "HKLM\Software\Microsoft\Windows NT\CurrentVersion\SystemRestore" /v SystemRestorePointCreationFrequency /t REG_DWORD /d 0 /f
 timeout /t 2 /nobreak >nul
 call :LOG Creating restore point...
-PowerShell -ExecutionPolicy RemoteSigned -Command "try { Checkpoint-Computer -Description 'Status Before TBOK Windows Optimizer' -RestorePointType 'MODIFY_SETTINGS' -ErrorAction Stop; exit 0 } catch { exit 1 }"
+PowerShell -ExecutionPolicy RemoteSigned -Command "try { Checkpoint-Computer -Description 'Status Before Windows Optimizer' -RestorePointType 'MODIFY_SETTINGS' -ErrorAction Stop; exit 0 } catch { exit 1 }"
 if !errorlevel! equ 0 (
     call :LOG Restore point created successfully.
 ) else (
     call :LOG WARNING: Could not create restore point.
 	:RegistryBackup
 	call :LOG Creating a separate registry backup in the script folder as a failsafe backup
-	reg export HKLM "%~dp0TBOK-OptimizerRegistry-Backup-HKLM.reg" /y >nul
-	reg export HKCU "%~dp0TBOK-OptimizerRegistry-Backup-HKCU.reg" /y >nul
+	reg export HKLM "%~dp0OptimizerRegistry-Backup-HKLM.reg" /y >nul
+	reg export HKCU "%~dp0OptimizerRegistry-Backup-HKCU.reg" /y >nul
 	call :LOG Registry backed up and saved to script folder
 )
 ECHO.
